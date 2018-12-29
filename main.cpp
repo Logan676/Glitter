@@ -6,6 +6,9 @@
 
 #include <iostream>
 #include <cmath>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow *window);
@@ -20,9 +23,10 @@ const char *vertexShaderSource ="#version 330 core\n"
 "layout (location = 2) in vec2 aTexCoord;\n"
 "out vec3 ourColor;\n"
 "out vec2 TexCoord;\n"
+"uniform mat4 transform;\n"
 "void main()\n"
 "{\n"
-"   gl_Position = vec4(aPos, 1.0);\n"
+"   gl_Position = transform * vec4(aPos, 1.0);\n"
 "   ourColor = aColor;\n"
 "   TexCoord = vec2(aTexCoord.x, aTexCoord.y);\n"
 "}\0";
@@ -75,6 +79,15 @@ int main()
         return -1;
     }
     
+    glm::vec4 vec(1.0f, 0.0f, 0.0f, 1.0f);
+    // 译注：下面就是矩阵初始化的一个例子，如果使用的是0.9.9及以上版本
+    // 下面这行代码就需要改为:
+    glm::mat4 trans = glm::mat4(1.0f);
+
+    trans = glm::translate(trans, glm::vec3(1.0f, 1.0f, 0.0f));
+    vec = trans * vec;
+    std::cout << "result:" << vec.x << vec.y << vec.z << std::endl;
+    
     // build and compile our shader program
     // ------------------------------------
     // vertex shader
@@ -114,7 +127,7 @@ int main()
     }
     glDeleteShader(vertexShader);
     glDeleteShader(fragmentShader);
-
+    
     //Shader ourShader("4.1.texture.vs", "4.1.texture.fs");
     
     // set up vertex data (and buffer(s)) and configure vertex attributes
@@ -153,27 +166,24 @@ int main()
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float)));
     glEnableVertexAttribArray(2);
     
-    glUniform1f(glGetUniformLocation(shaderProgram, "alphaForFace"), 0.8);
-    
     
     // load and create a texture
     // -------------------------
-    unsigned int texture1;
+    unsigned int texture1, texture2;
+    // texture 1
+    // ---------
     glGenTextures(1, &texture1);
-    glBindTexture(GL_TEXTURE_2D, texture1); // all upcoming GL_TEXTURE_2D operations now have effect on this texture object
+    glBindTexture(GL_TEXTURE_2D, texture1);
     // set the texture wrapping parameters
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    // set texture wrapping to GL_REPEAT (default wrapping method)
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);    // set texture wrapping to GL_REPEAT (default wrapping method)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
     // set texture filtering parameters
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     // load image, create texture and generate mipmaps
     int width, height, nrChannels;
+    stbi_set_flip_vertically_on_load(true); // tell stb_image.h to flip loaded texture's on the y-axis.
     // The FileSystem::getPath(...) is part of the GitHub repository so we can find files on any IDE/platform; replace it with your own image path.
-//    unsigned char *data = stbi_load(FileSystem::getPath("resources/textures/container.jpg").c_str(), &width, &height, &nrChannels, 0);
-    stbi_set_flip_vertically_on_load(true);
     unsigned char *data = stbi_load("/Users/Logan/development/opengl2/Glitter/resources/textures/container.jpg",
                                     &width, &height, &nrChannels, 0);
     if (data)
@@ -186,24 +196,22 @@ int main()
         std::cout << "Failed to load texture" << std::endl;
     }
     stbi_image_free(data);
-    
-    unsigned int texture2;
+    // texture 2
+    // ---------
     glGenTextures(1, &texture2);
     glBindTexture(GL_TEXTURE_2D, texture2);
-    
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    // set texture wrapping to GL_REPEAT (default wrapping method)
+    // set the texture wrapping parameters
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);    // set texture wrapping to GL_REPEAT (default wrapping method)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
     // set texture filtering parameters
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-    // The FileSystem::getPath(...) is part of the GitHub repository so we can find files on any IDE/platform; replace it with your own image path.
-    //    unsigned char *data = stbi_load(FileSystem::getPath("resources/textures/container.jpg").c_str(), &width, &height, &nrChannels, 0);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    // load image, create texture and generate mipmaps
     data = stbi_load("/Users/Logan/development/opengl2/Glitter/resources/textures/awesomeface.png",
-                                    &width, &height, &nrChannels, 0);
+                     &width, &height, &nrChannels, 0);
     if (data)
     {
+        // note that the awesomeface.png has transparency and thus an alpha channel, so make sure to tell OpenGL the data type is of GL_RGBA
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
         glGenerateMipmap(GL_TEXTURE_2D);
     }
@@ -217,6 +225,12 @@ int main()
     glUniform1i(glGetUniformLocation(shaderProgram, "ourTexture1"), 0); // 手动设置
     glUniform1i(glGetUniformLocation(shaderProgram, "ourTexture2"), 1);
 
+//    glm::mat4 trans2 = glm::mat4(1.0f);
+//    trans2 = glm::rotate(trans2, glm::radians(90.0f), glm::vec3(0.0, 0.0, 1.0));
+//    trans2 = glm::scale(trans2, glm::vec3(0.5, 0.5, 0.5));
+//    unsigned int transformLoc = glGetUniformLocation(shaderProgram, "transform");
+//    glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(trans2));
+    
     // render loop
     // -----------
     while (!glfwWindowShouldClose(window))
@@ -230,19 +244,51 @@ int main()
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
         
+        // bind textures on corresponding texture units
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, texture1);
-        
         glActiveTexture(GL_TEXTURE1);
         glBindTexture(GL_TEXTURE_2D, texture2);
-    
+
         glUniform1f(glGetUniformLocation(shaderProgram, "mixValue"), mixValue);
         
+//        glm::mat4 trans2 = glm::mat4(1.0f);
+//        trans2 = glm::translate(trans2, glm::vec3(0.5f, -0.5f, 0.0f));
+//        trans2 = glm::scale(trans2, glm::vec3(0.5, 0.5, 0.5));
+//        trans2 = glm::rotate(trans2, (float)glfwGetTime(), glm::vec3(0.0f, 0.0f, 1.0f));
+//
+//        unsigned int transformLoc = glGetUniformLocation(shaderProgram, "transform");
+//        glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(trans2));
+//
         // render container
         glUseProgram(shaderProgram);
         glBindVertexArray(VAO);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-
+        
+        glm::mat4 transform = glm::mat4(1.0f);
+        // first container
+        // ---------------
+        transform = glm::translate(transform, glm::vec3(0.5f, -0.5f, 0.0f));
+        transform = glm::rotate(transform, (float)glfwGetTime(), glm::vec3(0.0f, 0.0f, 1.0f));
+        // get their uniform location and set matrix (using glm::value_ptr)
+        unsigned int transformLoc = glGetUniformLocation(shaderProgram, "transform");
+        glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(transform));
+        
+        // with the uniform matrix set, draw the first container
+        glBindVertexArray(VAO);
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+        
+        // second transformation
+        // ---------------------
+        transform = glm::mat4(1.0f); // reset it to an identity matrix
+        transform = glm::translate(transform, glm::vec3(-0.5f, 0.5f, 0.0f));
+        float scaleAmount = sin(glfwGetTime());
+        transform = glm::scale(transform, glm::vec3(scaleAmount, scaleAmount, scaleAmount));
+        glUniformMatrix4fv(transformLoc, 1, GL_FALSE, &transform[0][0]); // this time take the matrix value array's first element as its memory pointer value
+        
+        // now with the uniform matrix being replaced with new transformations, draw it again.
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+        
         // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
         // -------------------------------------------------------------------------------
         glfwSwapBuffers(window);
