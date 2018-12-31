@@ -65,13 +65,13 @@ const char *fragmentShaderSource = "#version 330 core\n"
 "};\n"
 "struct Light {"
 "   vec3 position;\n"
+"   vec3 direction;\n"
 "   vec3 ambient;\n"
 "   vec3 diffuse;\n"
+"   float cutOff;\n"
+"   float outerCutOff;\n"
 
 "   vec3 specular;\n"
-"   float constant;\n"
-"   float linear;\n"
-"   float quadratic;\n"
 "};\n"
 
 "in vec3 Normal;\n"
@@ -97,11 +97,11 @@ const char *fragmentShaderSource = "#version 330 core\n"
 "   float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);\n"
 "   vec3 specular = light.specular * spec * texture(material.specular, TexCoords).rgb;  \n"
 
-"   float distance    = length(light.position - FragPos);\n"
-"   float attenuation = 1.0 / (light.constant + light.linear * distance + light.quadratic * (distance * distance));\n"
-"   ambient  *= attenuation;\n"
-"   diffuse  *= attenuation;\n"
-"   specular *= attenuation;\n"
+"   float theta = dot(lightDir, normalize(-light.direction));\n"
+"   float epsilon   = light.cutOff - light.outerCutOff;\n"
+"   float intensity = clamp((theta - light.outerCutOff) / epsilon, 0.0, 1.0);\n"
+"   diffuse  *= intensity;\n"
+"   specular *= intensity;\n"
 "   vec3 result = ambient + diffuse + specular;\n"
 "   FragColor = vec4(result, 1.0);\n"
 "}\n\0";
@@ -366,10 +366,8 @@ int main()
         glUniform3f(lightPosLoc, lightPos.x, lightPos.y, lightPos.z);
         glUniform3f(viewPosLoc, camera.Position.x, camera.Position.y, camera.Position.z);
         
-        
-        glUniform1f(glGetUniformLocation(lightingShaderProgram, "light.constant"), 1.0f);
-        glUniform1f(glGetUniformLocation(lightingShaderProgram, "light.linear"), 0.09f);
-        glUniform1f(glGetUniformLocation(lightingShaderProgram, "light.quadratic"), 0.032f);
+        glUniform3f(glGetUniformLocation(lightingShaderProgram, "light.direction"), camera.Front.x, camera.Front.y, camera.Front.z);
+        glUniform1f(glGetUniformLocation(lightingShaderProgram, "light.cutOff"), glm::cos(glm::radians(12.5f)));
         
         // pass projection matrix to shader (note that in this case it could change every frame)
         glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
