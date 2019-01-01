@@ -63,47 +63,137 @@ const char *fragmentShaderSource = "#version 330 core\n"
 "   sampler2D specular;\n"
 "   float shininess;\n"
 "};\n"
-"struct Light {"
-"   vec3 position;\n"
+
+
+"struct DirLight {"
 "   vec3 direction;\n"
+
 "   vec3 ambient;\n"
 "   vec3 diffuse;\n"
+"   vec3 specular;\n"
+"};\n"
+
+"struct PointLight {"
+"   vec3 position;\n"
+
+"   float constant;\n"
+"   float linear;\n"
+"   float quadratic;\n"
+
+"   vec3 ambient;\n"
+"   vec3 diffuse;\n"
+"   vec3 specular;\n"
+"};\n"
+
+"struct SpotLight {\n"
+"   vec3 position;\n"
+"   vec3 direction;\n"
+
 "   float cutOff;\n"
 "   float outerCutOff;\n"
 
+"   float constant;\n"
+"   float linear;\n"
+"   float quadratic;\n"
+
+"   vec3 ambient;\n"
+"   vec3 diffuse;\n"
 "   vec3 specular;\n"
 "};\n"
+
+"#define NR_POINT_LIGHTS 4\n"
 
 "in vec3 Normal;\n"
 "in vec3 FragPos;\n"
 "in vec2 TexCoords;\n"
 
 "uniform vec3 viewPos;\n"
-"uniform Light light;\n"
+"uniform DirLight dirLight;\n"
+"uniform SpotLight spotLight;\n"
+"uniform PointLight pointLights[NR_POINT_LIGHTS];\n"
 "uniform Material material;\n"
+
+"vec3 CalcDirLight(DirLight light, vec3 normal, vec3 viewDir);\n"
+"vec3 CalcPointLight(PointLight light, vec3 normal, vec3 fragPos, vec3 viewDir);\n"
+"vec3 CalcSpotLight(SpotLight light, vec3 normal, vec3 fragPos, vec3 viewDir);\n"
 
 "void main()\n"
 "{\n"
+"   vec3 normal = normalize(Normal);\n"
+"   vec3 viewDir = viewPos - FragPos;\n"
+"   vec3 result;\n"
+"   result = CalcDirLight(dirLight, normal, viewDir);\n"
+"   for(int i = 0; i < NR_POINT_LIGHTS; i++) {\n"
+"       result += CalcPointLight(pointLights[i], normal, FragPos, viewDir);\n"
+"   }\n"
+"   result += CalcSpotLight(spotLight, normal, FragPos, viewDir);\n"
+"   FragColor = vec4(result, 1.0);\n"
+"}\n"
 
-"   vec3 ambient = light.ambient * texture(material.diffuse, TexCoords).rgb;\n"
+"vec3 CalcDirLight(DirLight light, vec3 normal, vec3 viewDir) {\n"
+"   vec3 lightDir = normalize(-light.direction);\n"
 
-"   vec3 norm = normalize(Normal);\n"
-"   vec3 lightDir = normalize(light.position - FragPos);\n"
-"   float diff = max(dot(norm, lightDir), 0.0);\n"
-"   vec3 diffuse = light.diffuse * diff * texture(material.diffuse, TexCoords).rgb;\n"
+"   float diff = max(dot(normal, lightDir), 0.0f);\n"
 
-"   vec3 viewDir = normalize(viewPos - FragPos);\n"
-"   vec3 reflectDir = reflect(-lightDir, norm);  \n"
+"   vec3 reflectDir = reflect(-lightDir, normal);\n"
 "   float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);\n"
-"   vec3 specular = light.specular * spec * texture(material.specular, TexCoords).rgb;  \n"
+
+"   vec3 ambient = light.ambient * vec3(texture(material.diffuse, TexCoords));\n"
+
+"   vec3 diffuse = light.diffuse * diff * vec3(texture(material.diffuse, TexCoords));\n"
+
+"   vec3 specular = light.specular * spec * vec3(texture(material.specular, TexCoords));\n"
+
+"   return (ambient + diffuse + specular);\n"
+"}\n"
+
+"vec3 CalcPointLight(PointLight light, vec3 normal, vec3 fragPos, vec3 viewDir) {\n"
+"   vec3 lightDir = normalize(light.position - fragPos);\n"
+
+"   float diff = max(dot(normal, lightDir), 0.0f);\n"
+
+"   vec3 reflectDir = reflect(-lightDir, normal);\n"
+"   float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);\n"
+
+"   float distance = length(light.position - fragPos);\n"
+"   float attenuation = 1.0 / (light.constant + light.linear * distance + light.quadratic * (distance * distance));\n"
+
+"   vec3 ambient = light.ambient * vec3(texture(material.diffuse, TexCoords));\n"
+
+"   vec3 diffuse = light.diffuse * diff * vec3(texture(material.diffuse, TexCoords));\n"
+
+"   vec3 specular = light.specular * spec * vec3(texture(material.specular, TexCoords));\n"
+"   ambient  *= attenuation;\n"
+"   diffuse  *= attenuation;\n"
+"   specular *= attenuation;\n"
+"   return (ambient + diffuse + specular);\n"
+"}\n"
+
+"vec3 CalcSpotLight(SpotLight light, vec3 normal, vec3 fragPos, vec3 viewDir) {\n"
+"   vec3 lightDir = normalize(light.position - fragPos);\n"
+
+"   float diff = max(dot(normal, lightDir), 0.0f);\n"
+
+"   vec3 reflectDir = reflect(-lightDir, normal);\n"
+"   float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);\n"
+
+"   float distance = length(light.position - fragPos);\n"
+"   float attenuation = 1.0 / (light.constant + light.linear * distance + light.quadratic * (distance * distance));\n"
+
 
 "   float theta = dot(lightDir, normalize(-light.direction));\n"
-"   float epsilon   = light.cutOff - light.outerCutOff;\n"
+"   float epsilon = light.cutOff - light.outerCutOff;\n"
 "   float intensity = clamp((theta - light.outerCutOff) / epsilon, 0.0, 1.0);\n"
-"   diffuse  *= intensity;\n"
-"   specular *= intensity;\n"
-"   vec3 result = ambient + diffuse + specular;\n"
-"   FragColor = vec4(result, 1.0);\n"
+
+"   vec3 ambient = light.ambient * vec3(texture(material.diffuse, TexCoords));\n"
+
+"   vec3 diffuse = light.diffuse * diff * vec3(texture(material.diffuse, TexCoords));\n"
+
+"   vec3 specular = light.specular * spec * vec3(texture(material.specular, TexCoords));\n"
+"   ambient  *= attenuation * intensity;\n"
+"   diffuse  *= attenuation * intensity;\n"
+"   specular *= attenuation * intensity;\n"
+"   return (ambient + diffuse + specular);\n"
 "}\n\0";
 
 const char *lightVertexShaderSource ="#version 330 core\n"
@@ -120,7 +210,7 @@ const char *lightFragmentShaderSource = "#version 330 core\n"
 "out vec4 FragColor;\n"
 "void main()\n"
 "{\n"
-"   FragColor = vec4(1.0);\n"
+"   FragColor = vec4(0.1);\n"
 "}\n\0";
 
 int main()
@@ -248,47 +338,47 @@ int main()
     // ------------------------------------------------------------------
     float vertices[] = {
         // positions          // normals           // texture coords
-        -0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f,  0.0f, 0.0f,
-        0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f,  1.0f, 0.0f,
-        0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f,  1.0f, 1.0f,
-        0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f,  1.0f, 1.0f,
-        -0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f,  0.0f, 1.0f,
-        -0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f,  0.0f, 0.0f,
+        -0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f,  0.0f,  0.0f,
+        0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f,  1.0f,  0.0f,
+        0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f,  1.0f,  1.0f,
+        0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f,  1.0f,  1.0f,
+        -0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f,  0.0f,  1.0f,
+        -0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f,  0.0f,  0.0f,
         
-        -0.5f, -0.5f,  0.5f,  0.0f,  0.0f, 1.0f,   0.0f, 0.0f,
-        0.5f, -0.5f,  0.5f,  0.0f,  0.0f, 1.0f,   1.0f, 0.0f,
-        0.5f,  0.5f,  0.5f,  0.0f,  0.0f, 1.0f,   1.0f, 1.0f,
-        0.5f,  0.5f,  0.5f,  0.0f,  0.0f, 1.0f,   1.0f, 1.0f,
-        -0.5f,  0.5f,  0.5f,  0.0f,  0.0f, 1.0f,   0.0f, 1.0f,
-        -0.5f, -0.5f,  0.5f,  0.0f,  0.0f, 1.0f,   0.0f, 0.0f,
+        -0.5f, -0.5f,  0.5f,  0.0f,  0.0f,  1.0f,  0.0f,  0.0f,
+        0.5f, -0.5f,  0.5f,  0.0f,  0.0f,  1.0f,  1.0f,  0.0f,
+        0.5f,  0.5f,  0.5f,  0.0f,  0.0f,  1.0f,  1.0f,  1.0f,
+        0.5f,  0.5f,  0.5f,  0.0f,  0.0f,  1.0f,  1.0f,  1.0f,
+        -0.5f,  0.5f,  0.5f,  0.0f,  0.0f,  1.0f,  0.0f,  1.0f,
+        -0.5f, -0.5f,  0.5f,  0.0f,  0.0f,  1.0f,  0.0f,  0.0f,
         
-        -0.5f,  0.5f,  0.5f, -1.0f,  0.0f,  0.0f,  1.0f, 0.0f,
-        -0.5f,  0.5f, -0.5f, -1.0f,  0.0f,  0.0f,  1.0f, 1.0f,
-        -0.5f, -0.5f, -0.5f, -1.0f,  0.0f,  0.0f,  0.0f, 1.0f,
-        -0.5f, -0.5f, -0.5f, -1.0f,  0.0f,  0.0f,  0.0f, 1.0f,
-        -0.5f, -0.5f,  0.5f, -1.0f,  0.0f,  0.0f,  0.0f, 0.0f,
-        -0.5f,  0.5f,  0.5f, -1.0f,  0.0f,  0.0f,  1.0f, 0.0f,
+        -0.5f,  0.5f,  0.5f, -1.0f,  0.0f,  0.0f,  1.0f,  0.0f,
+        -0.5f,  0.5f, -0.5f, -1.0f,  0.0f,  0.0f,  1.0f,  1.0f,
+        -0.5f, -0.5f, -0.5f, -1.0f,  0.0f,  0.0f,  0.0f,  1.0f,
+        -0.5f, -0.5f, -0.5f, -1.0f,  0.0f,  0.0f,  0.0f,  1.0f,
+        -0.5f, -0.5f,  0.5f, -1.0f,  0.0f,  0.0f,  0.0f,  0.0f,
+        -0.5f,  0.5f,  0.5f, -1.0f,  0.0f,  0.0f,  1.0f,  0.0f,
         
-        0.5f,  0.5f,  0.5f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f,
-        0.5f,  0.5f, -0.5f,  1.0f,  0.0f,  0.0f,  1.0f, 1.0f,
-        0.5f, -0.5f, -0.5f,  1.0f,  0.0f,  0.0f,  0.0f, 1.0f,
-        0.5f, -0.5f, -0.5f,  1.0f,  0.0f,  0.0f,  0.0f, 1.0f,
-        0.5f, -0.5f,  0.5f,  1.0f,  0.0f,  0.0f,  0.0f, 0.0f,
-        0.5f,  0.5f,  0.5f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f,
+        0.5f,  0.5f,  0.5f,  1.0f,  0.0f,  0.0f,  1.0f,  0.0f,
+        0.5f,  0.5f, -0.5f,  1.0f,  0.0f,  0.0f,  1.0f,  1.0f,
+        0.5f, -0.5f, -0.5f,  1.0f,  0.0f,  0.0f,  0.0f,  1.0f,
+        0.5f, -0.5f, -0.5f,  1.0f,  0.0f,  0.0f,  0.0f,  1.0f,
+        0.5f, -0.5f,  0.5f,  1.0f,  0.0f,  0.0f,  0.0f,  0.0f,
+        0.5f,  0.5f,  0.5f,  1.0f,  0.0f,  0.0f,  1.0f,  0.0f,
         
-        -0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f,  0.0f, 1.0f,
-        0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f,  1.0f, 1.0f,
-        0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f,  1.0f, 0.0f,
-        0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f,  1.0f, 0.0f,
-        -0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f,  0.0f, 0.0f,
-        -0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f,  0.0f, 1.0f,
+        -0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f,  0.0f,  1.0f,
+        0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f,  1.0f,  1.0f,
+        0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f,  1.0f,  0.0f,
+        0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f,  1.0f,  0.0f,
+        -0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f,  0.0f,  0.0f,
+        -0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f,  0.0f,  1.0f,
         
-        -0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f,  0.0f, 1.0f,
-        0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f,  1.0f, 1.0f,
-        0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,  1.0f, 0.0f,
-        0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,  1.0f, 0.0f,
-        -0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,  0.0f, 0.0f,
-        -0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f,  0.0f, 1.0f
+        -0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f,  0.0f,  1.0f,
+        0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f,  1.0f,  1.0f,
+        0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,  1.0f,  0.0f,
+        0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,  1.0f,  0.0f,
+        -0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,  0.0f,  0.0f,
+        -0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f,  0.0f,  1.0f
     };
    
     glm::vec3 cubePositions[] = {
@@ -302,6 +392,14 @@ int main()
         glm::vec3( 1.5f,  2.0f, -2.5f),
         glm::vec3( 1.5f,  0.2f, -1.5f),
         glm::vec3(-1.3f,  1.0f, -1.5f)
+    };
+    
+    // positions of the point lights
+    glm::vec3 pointLightPositions[] = {
+        glm::vec3( 0.7f,  0.2f,  2.0f),
+        glm::vec3( 2.3f, -3.3f, -4.0f),
+        glm::vec3(-4.0f,  2.0f, -12.0f),
+        glm::vec3( 0.0f,  0.0f, -3.0f)
     };
     
     unsigned int cubeVAO, VBO;
@@ -326,15 +424,12 @@ int main()
 
     unsigned int lightVAO;
     glGenVertexArrays(1, &lightVAO);
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-
     glBindVertexArray(lightVAO);
     
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
-    
-//    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float)));
-//    glEnableVertexAttribArray(2);
     
     // load textures (we now use a utility function to keep the code more organized)
     // -----------------------------------------------------------------------------
@@ -361,54 +456,85 @@ int main()
         
         // render container
         glUseProgram(lightingShaderProgram);
-        int lightPosLoc = glGetUniformLocation(lightingShaderProgram, "light.position");
-        int viewPosLoc = glGetUniformLocation(lightingShaderProgram, "viewPos");
-        glUniform3f(lightPosLoc, lightPos.x, lightPos.y, lightPos.z);
-        glUniform3f(viewPosLoc, camera.Position.x, camera.Position.y, camera.Position.z);
+        glUniform3f(glGetUniformLocation(lightingShaderProgram, "viewPos"), camera.Position.x, camera.Position.y, camera.Position.z);
         
-        glUniform3f(glGetUniformLocation(lightingShaderProgram, "light.direction"), camera.Front.x, camera.Front.y, camera.Front.z);
-        glUniform1f(glGetUniformLocation(lightingShaderProgram, "light.cutOff"), glm::cos(glm::radians(12.5f)));
         
-        // pass projection matrix to shader (note that in this case it could change every frame)
+        glUniform3f(glGetUniformLocation(lightingShaderProgram, "material.ambient"), 0.2f, 0.2f, 0.2f);
+        glUniform3f(glGetUniformLocation(lightingShaderProgram, "material.diffuse"),  0.5f, 0.5f, 0.5f);
+        glUniform3f(glGetUniformLocation(lightingShaderProgram, "material.specular"), 1.0f, 1.0f, 1.0f);
+        glUniform1f(glGetUniformLocation(lightingShaderProgram, "material.shininess"),  32.0f);
+
+        glUniform3f(glGetUniformLocation(lightingShaderProgram, "dirLight.direction"), -0.2f, -1.0f, -0.3f);
+        glUniform3f(glGetUniformLocation(lightingShaderProgram, "dirLight.ambient"),  0.05f, 0.05f, 0.05f);
+        glUniform3f(glGetUniformLocation(lightingShaderProgram, "dirLight.diffuse"),  0.4f, 0.4f, 0.4f);
+        glUniform3f(glGetUniformLocation(lightingShaderProgram, "dirLight.specular"),  0.5f, 0.5f, 0.5f);
+        
+        glUniform3f(glGetUniformLocation(lightingShaderProgram, "pointLights[0].position"),  pointLightPositions[0].x,pointLightPositions[0].y,pointLightPositions[0].z);
+        glUniform3f(glGetUniformLocation(lightingShaderProgram, "pointLights[0].ambient"),  0.05f, 0.05f, 0.05f);
+        glUniform3f(glGetUniformLocation(lightingShaderProgram, "pointLights[0].diffuse"),  0.8f, 0.8f, 0.8f);
+        glUniform3f(glGetUniformLocation(lightingShaderProgram, "pointLights[0].specular"),  1.0f, 1.0f, 1.0f);
+        glUniform1f(glGetUniformLocation(lightingShaderProgram, "pointLights[0].constant"),  1.0f);
+        glUniform1f(glGetUniformLocation(lightingShaderProgram, "pointLights[0].linear"),  0.09);
+        glUniform1f(glGetUniformLocation(lightingShaderProgram, "pointLights[0].quadratic"), 0.032);
+        
+        glUniform3f(glGetUniformLocation(lightingShaderProgram, "pointLights[1].position"),  pointLightPositions[1].x,pointLightPositions[1].y,pointLightPositions[1].z);
+        glUniform3f(glGetUniformLocation(lightingShaderProgram, "pointLights[1].ambient"),  0.05f, 0.05f, 0.05f);
+        glUniform3f(glGetUniformLocation(lightingShaderProgram, "pointLights[1].diffuse"),  0.8f, 0.8f, 0.8f);
+        glUniform3f(glGetUniformLocation(lightingShaderProgram, "pointLights[1].specular"),  1.0f, 1.0f, 1.0f);
+        glUniform1f(glGetUniformLocation(lightingShaderProgram, "pointLights[1].constant"),  1.0f);
+        glUniform1f(glGetUniformLocation(lightingShaderProgram, "pointLights[1].linear"),  0.09);
+        glUniform1f(glGetUniformLocation(lightingShaderProgram, "pointLights[1].quadratic"), 0.032);
+        
+        glUniform3f(glGetUniformLocation(lightingShaderProgram, "pointLights[2].position"),  pointLightPositions[2].x,pointLightPositions[2].y,pointLightPositions[2].z);
+        glUniform3f(glGetUniformLocation(lightingShaderProgram, "pointLights[2].ambient"),  0.05f, 0.05f, 0.05f);
+        glUniform3f(glGetUniformLocation(lightingShaderProgram, "pointLights[2].diffuse"),  0.8f, 0.8f, 0.8f);
+        glUniform3f(glGetUniformLocation(lightingShaderProgram, "pointLights[2].specular"),  1.0f, 1.0f, 1.0f);
+        glUniform1f(glGetUniformLocation(lightingShaderProgram, "pointLights[2].constant"),  1.0f);
+        glUniform1f(glGetUniformLocation(lightingShaderProgram, "pointLights[2].linear"),  0.09);
+        glUniform1f(glGetUniformLocation(lightingShaderProgram, "pointLights[2].quadratic"), 0.032);
+        
+        glUniform3f(glGetUniformLocation(lightingShaderProgram, "pointLights[3].position"),  pointLightPositions[3].x,pointLightPositions[3].y,pointLightPositions[3].z);
+        glUniform3f(glGetUniformLocation(lightingShaderProgram, "pointLights[3].ambient"),  0.05f, 0.05f, 0.05f);
+        glUniform3f(glGetUniformLocation(lightingShaderProgram, "pointLights[3].diffuse"),  0.8f, 0.8f, 0.8f);
+        glUniform3f(glGetUniformLocation(lightingShaderProgram, "pointLights[3].specular"),  1.0f, 1.0f, 1.0f);
+        glUniform1f(glGetUniformLocation(lightingShaderProgram, "pointLights[3].constant"),  1.0f);
+        glUniform1f(glGetUniformLocation(lightingShaderProgram, "pointLights[3].linear"),  0.09);
+        glUniform1f(glGetUniformLocation(lightingShaderProgram, "pointLights[3].quadratic"), 0.032);
+        
+        glUniform3f(glGetUniformLocation(lightingShaderProgram, "spotLight.position"),  camera.Position.x, camera.Position.y, camera.Position.z);
+        glUniform3f(glGetUniformLocation(lightingShaderProgram, "spotLight.direction"),  camera.Front.x,  camera.Front.y,  camera.Front.z);
+        glUniform3f(glGetUniformLocation(lightingShaderProgram, "spotLight.ambient"),  0.0f, 0.0f, 0.0f);
+        glUniform3f(glGetUniformLocation(lightingShaderProgram, "spotLight.diffuse"),  1.0f, 1.0f, 1.0f);
+        glUniform3f(glGetUniformLocation(lightingShaderProgram, "spotLight.specular"),  1.0f, 1.0f, 1.0f);
+        glUniform1f(glGetUniformLocation(lightingShaderProgram, "spotLight.constant"),  1.0f);
+        glUniform1f(glGetUniformLocation(lightingShaderProgram, "spotLight.linear"),  0.09);
+        glUniform1f(glGetUniformLocation(lightingShaderProgram, "spotLight.quadratic"),  0.032);
+        glUniform1f(glGetUniformLocation(lightingShaderProgram, "spotLight.cutOff"), glm::cos(glm::radians(12.5f)));
+        glUniform1f(glGetUniformLocation(lightingShaderProgram, "spotLight.outerCutOff"), glm::cos(glm::radians(15.0f)));
+        
         glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
-        
-        // camera/view transformation
         glm::mat4 view = camera.GetViewMatrix();
-        
-        glUniformMatrix4fv(glGetUniformLocation(lightingShaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
         glUniformMatrix4fv(glGetUniformLocation(lightingShaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+        glUniformMatrix4fv(glGetUniformLocation(lightingShaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
         
         glm::mat4 model = glm::mat4(1.0f);
-//        model = glm::rotate(model, (float)glfwGetTime(), glm::vec3(1.0f, 0.3f, 0.5f));
-//        glUniformMatrix4fv(glGetUniformLocation(lightingShaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
-//
+        glUniformMatrix4fv (glGetUniformLocation(lightingShaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
+        
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, diffuseMap);
         
         glActiveTexture(GL_TEXTURE1);
         glBindTexture(GL_TEXTURE_2D, specularMap);
 
-        
-//        glUniform3f(glGetUniformLocation(lightingShaderProgram, "material.ambient"), 1.0f, 0.5f, 0.31f);
-//        glUniform3f(glGetUniformLocation(lightingShaderProgram, "material.diffuse"),  1.0f, 0.5f, 0.31f);
-        //glUniform3f(glGetUniformLocation(lightingShaderProgram, "material.specular"),  0.5f, 0.5f, 0.5f);
-        glUniform1f(glGetUniformLocation(lightingShaderProgram, "material.shininess"),  32.0f);
-    
-        glUniform3f(glGetUniformLocation(lightingShaderProgram, "light.ambient"),  0.2f, 0.2f, 0.2f);
-        glUniform3f(glGetUniformLocation(lightingShaderProgram, "light.diffuse"),  0.5f, 0.5f, 0.5f);
-        glUniform3f(glGetUniformLocation(lightingShaderProgram, "light.specular"),  1.0f, 1.0f, 1.0f);
-        
-        
         // with the uniform matrix set, draw the first container
         glBindVertexArray(cubeVAO);
         
         for(unsigned int i = 0; i < 10; i++)
         {
-            glm::mat4 model = glm::mat4(1.0f);;
+            glm::mat4 model = glm::mat4(1.0f);
             model = glm::translate(model, cubePositions[i]);
-            
-            model = glm::rotate(model, (float)glfwGetTime(), glm::vec3(1.0f, 0.3f, 0.5f));
-            
+            float angle = 20.0f * i;
+            model = glm::rotate(model, glm::radians(angle), glm::vec3(1.0f, 0.3f, 0.5f));
            glUniformMatrix4fv (glGetUniformLocation(lightingShaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
            glDrawArrays(GL_TRIANGLES, 0, 36);
         }
@@ -416,13 +542,18 @@ int main()
         glUseProgram(lampShaderProgram);
         
         model = glm::mat4(1.0f);
-        model = glm::translate(model, lightPos);
-        model = glm::scale(model, glm::vec3(0.2f));
-        glUniformMatrix4fv(glGetUniformLocation(lampShaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
-        glUniformMatrix4fv(glGetUniformLocation(lampShaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
         glUniformMatrix4fv(glGetUniformLocation(lampShaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+        glUniformMatrix4fv(glGetUniformLocation(lampShaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
+
         glBindVertexArray(lightVAO);
-        glDrawArrays(GL_TRIANGLES, 0, 36);
+        for (unsigned int i = 0; i < 4; i++)
+        {
+            model = glm::mat4(1.0f);
+            model = glm::translate(model, pointLightPositions[i]);
+            model = glm::scale(model, glm::vec3(0.2f)); // Make it a smaller cube
+            glUniformMatrix4fv(glGetUniformLocation(lampShaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
+            glDrawArrays(GL_TRIANGLES, 0, 36);
+        }
         
         // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
         // -------------------------------------------------------------------------------
