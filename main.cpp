@@ -73,11 +73,13 @@ int main()
     // configure global opengl state
     // -----------------------------
     glEnable(GL_DEPTH_TEST);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 //    glDepthFunc(GL_LESS); // always pass the depth test (same effect as glDisable(GL_DEPTH_TEST))
     
     // build and compile shaders
     // -------------------------
-    Shader shader("3.1.blending.vs", "3.1.blending.fs");
+    Shader shader("3.2.blending.vs", "3.2.blending.fs");
     
     // set up vertex data (and buffer(s)) and configure vertex attributes
     // ------------------------------------------------------------------
@@ -199,8 +201,19 @@ int main()
     // -------------
     unsigned int cubeTexture  = loadTexture("resources/textures/marble.jpg");
     unsigned int floorTexture = loadTexture("resources/textures/metal.png");
-    unsigned int transparentTexture = loadTexture("resources/textures/grass.png");
+    unsigned int transparentTexture = loadTexture("resources/textures/blending_transparent_window.png");
 
+    // transparent window locations
+    // --------------------------------
+    vector<glm::vec3> windows
+    {
+        glm::vec3(-1.5f, 0.0f, -0.48f),
+        glm::vec3( 1.5f, 0.0f, 0.51f),
+        glm::vec3( 0.0f, 0.0f, 0.7f),
+        glm::vec3(-0.3f, 0.0f, -2.3f),
+        glm::vec3( 0.5f, 0.0f, -0.6f)
+    };
+    
     // shader configuration
     // --------------------
     shader.use();
@@ -219,6 +232,12 @@ int main()
         // input
         // -----
         processInput(window);
+        
+        std::map<float, glm::vec3> sorted;
+        for (unsigned int i=0;i<windows.size();i++) {
+            float distance = glm::length(camera.Position - windows[i]);
+            sorted[distance]=windows[i];
+        }
         
         // render
         // ------
@@ -252,14 +271,13 @@ int main()
         glBindVertexArray(transparentVAO);
         glBindTexture(GL_TEXTURE_2D, transparentTexture);
         
-        for(unsigned int i = 0; i < vegetation.size(); i++)
+        for(std::map<float, glm::vec3>::reverse_iterator it = sorted.rbegin(); it != sorted.rend(); ++it)
         {
             model = glm::mat4(1.0f);
-            model = glm::translate(model, vegetation[i]);
+            model = glm::translate(model, it->second);
             shader.setMat4("model", model);
             glDrawArrays(GL_TRIANGLES, 0, 6);
-        }
-
+        }        
         
         // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
         // -------------------------------------------------------------------------------
