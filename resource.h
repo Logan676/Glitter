@@ -11,8 +11,7 @@
 
 #include <map>
 #include <string>
-
-#include "glew.h"
+#include <GL/glew.h>
 
 #include "texture.h"
 #include "shader.h"

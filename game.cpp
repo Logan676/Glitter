@@ -9,6 +9,8 @@
 #include "game.h"
 #include "resource.h"
 
+// Game-related State data
+SpriteRenderer *Renderer;
 
 Game::Game(GLuint width, GLuint height)
 : State(GAME_ACTIVE), Keys(), Width(width), Height(height)
@@ -18,11 +20,26 @@ Game::Game(GLuint width, GLuint height)
 
 Game::~Game()
 {
-    
+    delete Renderer;
 }
 
 void Game::Init()
 {
+    // Load shaders
+    ResourceManager::LoadShader("sprite.vert", "sprite.frag", nullptr, "sprite");
+    // Configure shaders
+    glm::mat4 projection = glm::ortho(0.0f, static_cast<GLfloat>(this->Width), static_cast<GLfloat>(this->Height), 0.0f, -1.0f, 1.0f);
+    ResourceManager::GetShader("sprite").Use().SetInteger("image", 0);
+    ResourceManager::GetShader("sprite").SetMatrix4("projection", projection);
+    
+    // 加载纹理
+    ResourceManager::LoadTexture("/Users/Logan/development/OpenGL/Glitter/texture/awesomeface.png", GL_TRUE, "face");
+    
+    // 设置专用于渲染的控制
+    Shader myShader;
+    myShader = ResourceManager::GetShader("sprite");
+    Renderer = new SpriteRenderer(myShader);
+    
     
 }
 
@@ -39,5 +56,7 @@ void Game::ProcessInput(GLfloat dt)
 
 void Game::Render()
 {
-    
+    Texture2D myTexture;
+    myTexture = ResourceManager::GetTexture("face");
+    Renderer->DrawSprite(myTexture, glm::vec2(200, 200), glm::vec2(300, 400), 45.0f, glm::vec3(0.0f, 1.0f, 0.0f));
 }
