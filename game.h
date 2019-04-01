@@ -61,6 +61,9 @@ public:
     void Update(GLfloat dt);
     void Render();
     void DoCollisions();
+    // Reset
+    void ResetLevel();
+    void ResetPlayer();
     
 private:
     GLboolean CheckCollisionAABB(BallObject &one, GameObject &two);

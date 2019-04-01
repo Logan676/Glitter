@@ -24,6 +24,7 @@ const GLfloat BALL_RADIUS = 12.5f;
 
 BallObject     *Ball;
 
+typedef std::tuple<GLboolean, Direction, glm::vec2> Collision;
 
 Game::Game(GLuint width, GLuint height)
 : State(GAME_ACTIVE), Keys(), Width(width), Height(height)
@@ -78,8 +79,30 @@ void Game::Update(GLfloat dt)
 {
     Ball->Move(dt, this->Width);
     this->DoCollisions();
+    if(Ball->Position.y>=this->Height){// 球是否接触底部边界？
+        this->ResetLevel();
+        this->ResetPlayer();
+    }
 }
 
+void Game::ResetLevel()
+{
+    if (this->Level == 0)this->Levels[0].Load("level/one.lvl", this->Width, this->Height * 0.5f);
+    else if (this->Level == 1)
+        this->Levels[1].Load("level/two.lvl", this->Width, this->Height * 0.5f);
+    else if (this->Level == 2)
+        this->Levels[2].Load("level/three.lvl", this->Width, this->Height * 0.5f);
+    else if (this->Level == 3)
+        this->Levels[3].Load("level/four.lvl", this->Width, this->Height * 0.5f);
+}
+
+void Game::ResetPlayer()
+{
+    // Reset player/ball stats
+    Player->Size = PLAYER_SIZE;
+    Player->Position = glm::vec2(this->Width / 2 - PLAYER_SIZE.x / 2, this->Height - PLAYER_SIZE.y);
+    Ball->Reset(Player->Position + glm::vec2(PLAYER_SIZE.x / 2 - BALL_RADIUS, -(BALL_RADIUS * 2)), INITIAL_BALL_VELOCITY);
+}
 
 void Game::ProcessInput(GLfloat dt)
 {
@@ -161,6 +184,21 @@ void Game::DoCollisions()
                     else
                         Ball->Position.y += penetration; // 将球下移
                 }
+            }
+            Collision result = CheckCollision(*Ball, *Player);
+            if (!Ball -> Stuck && std::get<0>(result)) {
+                // 检查碰到了挡板的哪个位置，并根据碰到哪个位置来改变速度
+                GLfloat centerBoard = Player-> Position.x + Player->Size.x/2;
+                GLfloat distance = (Ball->Position.x+Ball->Radius) - centerBoard;
+                GLfloat percentage = distance / (Player->Size.x/2);
+                
+                // 依据结果移动
+                GLfloat strength = 2.0f;
+                glm::vec2 oldVelocity = Ball -> Velocity;
+                Ball->Velocity.x = INITIAL_BALL_VELOCITY.x * percentage * strength;
+                // Ball->Velocity.y = -Ball->Velocity.y;
+                Ball->Velocity.y = -1 * abs(Ball->Velocity.y);
+                Ball->Velocity=glm::normalize(Ball->Velocity) * glm::length(oldVelocity);
             }
         }
     }
