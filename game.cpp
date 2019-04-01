@@ -12,12 +12,15 @@
 #include "gameObject.h"
 #include "ballObject.h"
 #include "particleGenerator.h"
+#include "postProcessor.h"
 
 // Game-related State data
 SpriteRenderer      *Renderer;
 GameObject          *Player;
 BallObject          *Ball;
 ParticleGenerator   *Particles;
+PostProcessor       *Effects;
+GLfloat             ShakeTime = 0.0f;
 
 // 初始化球的速度
 const glm::vec2 INITIAL_BALL_VELOCITY(100.0f, -350.0f);
@@ -38,6 +41,7 @@ Game::~Game()
     delete Player;
     delete Ball;
     delete Particles;
+    delete Effects;
 }
 
 void Game::Init()
@@ -45,6 +49,7 @@ void Game::Init()
     // Load shaders
     ResourceManager::LoadShader("sprite.vert", "sprite.frag", nullptr, "sprite");
     ResourceManager::LoadShader("particle.vert", "particle.frag", nullptr, "particle");
+    ResourceManager::LoadShader("postprocessing.vert", "postprocessing.frag", nullptr, "postprocessing");
     
     // Configure shaders
     glm::mat4 projection = glm::ortho(0.0f, static_cast<GLfloat>(this->Width), static_cast<GLfloat>(this->Height), 0.0f, -1.0f, 1.0f);
@@ -66,6 +71,7 @@ void Game::Init()
     myShader = ResourceManager::GetShader("sprite");
     Renderer = new SpriteRenderer(myShader);
     Particles = new ParticleGenerator(ResourceManager::GetShader("particle"), ResourceManager::GetTexture("particle"), 500);
+    Effects = new PostProcessor(ResourceManager::GetShader("postprocessing"), this->Width, this->Height);
     
     // Load levels
     GameLevel one; one.Load("level/one.lvl", this->Width, this->Height * 0.5);
@@ -84,6 +90,10 @@ void Game::Init()
     glm::vec2 ballPos = playerPos + glm::vec2(PLAYER_SIZE.x / 2 - BALL_RADIUS, -BALL_RADIUS * 2);
     Ball = new BallObject(ballPos, BALL_RADIUS, INITIAL_BALL_VELOCITY,
                           ResourceManager::GetTexture("face"));
+    
+//    Effects->Shake = GL_TRUE;
+//    Effects->Confuse = GL_TRUE;
+//    Effects->Chaos = GL_TRUE;
 }
 
 void Game::Update(GLfloat dt)
@@ -92,6 +102,13 @@ void Game::Update(GLfloat dt)
     this->DoCollisions();
     // Update particles
     Particles->Update(dt, *Ball, 2, glm::vec2(Ball->Radius / 2));
+    // Reduce shake time
+    if (ShakeTime > 0.0f)
+    {
+        ShakeTime -= dt;
+        if (ShakeTime <= 0.0f)
+            Effects->Shake = GL_FALSE;
+    }
     // Check loss condition
     if(Ball->Position.y>=this->Height){// 球是否接触底部边界？
         this->ResetLevel();
@@ -150,10 +167,14 @@ void Game::Render()
 {
     if (this->State == GAME_ACTIVE)
     {
+        // Begin rendering to postprocessing quad
+        Effects->BeginRender();
+
         Texture2D myTexture;
         myTexture = ResourceManager::GetTexture("background");
         // Draw background
         Renderer->DrawSprite(myTexture, glm::vec2(0, 0), glm::vec2(this->Width, this->Height), 0.0f);
+        
         // Draw level
         this->Levels[this->Level].Draw(*Renderer);
         // Draw player
@@ -162,6 +183,10 @@ void Game::Render()
         Particles->Draw();
         // Draw ball
         Ball->Draw(*Renderer);
+        // End rendering to postprocessing quad
+        Effects->EndRender();
+        // Render postprocessing quad
+        Effects->Render(glfwGetTime());
     }
 }
 
@@ -175,8 +200,16 @@ void Game::DoCollisions()
             if (std::get<0>(collision)) // 如果collision 是 true
             {
                 // 如果砖块不是实心就销毁砖块
-                if (!box.IsSolid)
+                if (!box.IsSolid) {
                     box.Destroyed = GL_TRUE;
+                    ShakeTime = 0.05f;
+                    Effects->Shake = true;
+                } else {
+                    // 如果是实心的砖块则激活shake特效
+                    ShakeTime = 0.20f;
+                    Effects->Shake = true;
+                }
+                
                 // 碰撞处理
                 Direction dir = std::get<1>(collision);
                 glm::vec2 diff_vector = std::get<2>(collision);
