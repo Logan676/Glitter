@@ -128,12 +128,38 @@ void Game::Render()
 
 void Game::DoCollisions()
 {
-    for (GameObject &box : this -> Levels[this->Level].Bricks)
+    for (GameObject &box : this->Levels[this->Level].Bricks)
     {
-        if (!box.Destroyed) {
-            if (CheckCollisionAABB(*Ball, box)) {
-                if (!box.IsSolid) {
+        if (!box.Destroyed)
+        {
+            Collision collision = CheckCollision(*Ball, box);
+            if (std::get<0>(collision)) // 如果collision 是 true
+            {
+                // 如果砖块不是实心就销毁砖块
+                if (!box.IsSolid)
                     box.Destroyed = GL_TRUE;
+                // 碰撞处理
+                Direction dir = std::get<1>(collision);
+                glm::vec2 diff_vector = std::get<2>(collision);
+                if (dir == LEFT || dir == RIGHT) // 水平方向碰撞
+                {
+                    Ball->Velocity.x = -Ball->Velocity.x; // 反转水平速度
+                    // 重定位
+                    GLfloat penetration = Ball->Radius - std::abs(diff_vector.x);
+                    if (dir == LEFT)
+                        Ball->Position.x += penetration; // 将球右移
+                    else
+                        Ball->Position.x -= penetration; // 将球左移
+                }
+                else // 垂直方向碰撞
+                {
+                    Ball->Velocity.y = -Ball->Velocity.y; // 反转垂直速度
+                    // 重定位
+                    GLfloat penetration = Ball->Radius - std::abs(diff_vector.y);
+                    if (dir == UP)
+                        Ball->Position.y -= penetration; // 将球上移
+                    else
+                        Ball->Position.y += penetration; // 将球下移
                 }
             }
         }
