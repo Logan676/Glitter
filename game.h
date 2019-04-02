@@ -17,6 +17,7 @@
 
 #include "gameLevel.h"
 #include "ballObject.h"
+#include "powerUp.h"
 
 // Represents the current state of the game
 enum GameState {
@@ -29,6 +30,10 @@ enum GameState {
 const glm::vec2 PLAYER_SIZE(100, 20);
 // Initial velocity of the player paddle
 const GLfloat PLAYER_VELOCITY(500.0f);
+// Initial velocity of the Ball
+const glm::vec2 INITIAL_BALL_VELOCITY(100.0f, -350.0f);
+// Radius of the ball object
+const GLfloat BALL_RADIUS = 12.5f;
 
 enum Direction {
     UP,
@@ -51,6 +56,8 @@ public:
     GLuint                 Width, Height;
     std::vector<GameLevel> Levels;
     GLuint                 Level;
+    std::vector<PowerUp>   PowerUps;
+    
     // Constructor/Destructor
     Game(GLuint width, GLuint height);
     ~Game();
@@ -61,9 +68,16 @@ public:
     void Update(GLfloat dt);
     void Render();
     void DoCollisions();
+    void ActivatePowerUp(PowerUp &powerUp);
     // Reset
     void ResetLevel();
     void ResetPlayer();
+    
+     // Powerups
+    void SpawnPowerUps(GameObject &block);
+    void UpdatePowerUps(GLfloat dt);
+    GLboolean IsOtherPowerUpActive(std::vector<PowerUp> &powerUps, std::string type);
+    GLboolean CheckCollision(GameObject &one, GameObject &two);
     
 private:
     GLboolean CheckCollisionAABB(BallObject &one, GameObject &two);
